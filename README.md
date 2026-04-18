@@ -1,5 +1,9 @@
 # AI Debugger
 
+[Live demo](https://ai-debugger-c023.onrender.com/)
+
+This is deployed on Render's free plan, so the first request after inactivity may take 10 to 20 seconds while the service wakes up.
+
 A small hackathon MVP Django app for turning failure logs plus repo context into a focused debugging brief.
 
 The app gives you:
