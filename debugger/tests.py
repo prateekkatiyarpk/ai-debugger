@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
@@ -21,6 +22,7 @@ from debugger.services.debugger import (
 from debugger.services.language_detect import detect_language_profile
 from debugger.services.repo_ingest import build_repository_context
 from debugger.services.repo_search import discover_repo_context, parse_traceback_clues
+from debugger.services.repro_runner import CommandCapture, capture_repro_command
 
 
 REPO_TRACEBACK = """Traceback (most recent call last):
@@ -29,6 +31,7 @@ REPO_TRACEBACK = """Traceback (most recent call last):
 django.urls.exceptions.NoReverseMatch: Reverse for 'post_detail' with keyword arguments '{'pk': ''}' not found."""
 
 PYTEST_FAILURE = """FAILED tests/test_views.py::test_post_list_links - django.urls.exceptions.NoReverseMatch: Reverse for 'post_detail' not found"""
+REPRO_OUTPUT = "$ pytest\nExit code: 1\n\nstdout:\nFAILED tests/test_views.py::test_post_list_links"
 
 
 def make_zip(files: dict[str, str]) -> bytes:
@@ -165,6 +168,49 @@ class DebuggerServiceTests(SimpleTestCase):
         self.assertIn("recommended_fix", messages[0]["content"])
 
 
+class ReproRunnerTests(SimpleTestCase):
+    @patch.dict(os.environ, {"DJANGO_DEBUG": "0", "AI_DEBUGGER_ENABLE_COMMAND_EXECUTION": "0"})
+    def test_capture_repro_command_respects_execution_toggle(self):
+        capture = capture_repro_command(Path("."), "pytest")
+
+        self.assertTrue(capture.attempted)
+        self.assertFalse(capture.ran)
+        self.assertIn("disabled on this deployment", capture.error_message)
+
+    def test_capture_repro_command_returns_helpful_error_without_repo(self):
+        capture = capture_repro_command(None, "pytest")
+
+        self.assertTrue(capture.attempted)
+        self.assertFalse(capture.ran)
+        self.assertFalse(capture.has_output)
+        self.assertIn("Add a repo ZIP", capture.error_message)
+
+    def test_capture_repro_command_rejects_unsupported_command(self):
+        capture = capture_repro_command(Path("."), "bash -lc 'pytest'")
+
+        self.assertTrue(capture.attempted)
+        self.assertFalse(capture.ran)
+        self.assertIn("supports common test and build repro commands", capture.error_message)
+
+    @patch("debugger.services.repro_runner.subprocess.run")
+    def test_capture_repro_command_formats_output(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["pytest"],
+            returncode=1,
+            stdout="FAILED tests/test_views.py::test_post_list_links",
+            stderr="",
+        )
+
+        capture = capture_repro_command(Path("."), "pytest")
+
+        self.assertTrue(capture.attempted)
+        self.assertTrue(capture.ran)
+        self.assertTrue(capture.has_output)
+        self.assertEqual(capture.exit_code, 1)
+        self.assertIn("$ pytest", capture.output)
+        self.assertIn("Exit code: 1", capture.output)
+
+
 class DebuggerViewTests(SimpleTestCase):
     @patch.dict(os.environ, {"OPENAI_API_KEY": ""})
     def test_demo_post_renders_structured_result_without_api_key(self):
@@ -214,6 +260,80 @@ class DebuggerViewTests(SimpleTestCase):
         self.assertIn("posts/views.py", kwargs["code_context"])
         self.assertEqual(kwargs["detected_language"], "Python")
         self.assertEqual(kwargs["detected_framework"], "Django")
+
+    @patch("debugger.views.analyze_bug")
+    @patch("debugger.views.capture_repro_command")
+    def test_repro_command_without_pasted_log_uses_captured_output(self, mock_capture, mock_analyze_bug):
+        mock_capture.return_value = CommandCapture(
+            command="pytest",
+            attempted=True,
+            ran=True,
+            output=REPRO_OUTPUT,
+            exit_code=1,
+        )
+        mock_analyze_bug.return_value = analysis_from_dict(DEMO_ANALYSIS, source="llm")
+        repo_zip = SimpleUploadedFile(
+            "repo.zip",
+            make_zip(
+                {
+                    "manage.py": "from django.core.management import execute_from_command_line\n",
+                    "tests/test_views.py": "def test_post_list_links(): assert False\n",
+                }
+            ),
+            content_type="application/zip",
+        )
+
+        response = Client().post(
+            "/",
+            {
+                "error_log": "",
+                "repro_command": "pytest",
+                "repo_zip": repo_zip,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Failure source: Captured from command")
+        self.assertContains(response, "Captured Command Output")
+        _args, kwargs = mock_analyze_bug.call_args
+        self.assertEqual(kwargs["error_log"], REPRO_OUTPUT)
+
+    @patch("debugger.views.analyze_bug")
+    @patch("debugger.views.capture_repro_command")
+    def test_repro_command_with_pasted_log_prefers_pasted_failure(self, mock_capture, mock_analyze_bug):
+        mock_capture.return_value = CommandCapture(
+            command="pytest",
+            attempted=True,
+            ran=True,
+            output=REPRO_OUTPUT,
+            exit_code=1,
+        )
+        mock_analyze_bug.return_value = analysis_from_dict(DEMO_ANALYSIS, source="llm")
+        repo_zip = SimpleUploadedFile(
+            "repo.zip",
+            make_zip(
+                {
+                    "manage.py": "from django.core.management import execute_from_command_line\n",
+                    "tests/test_views.py": "def test_post_list_links(): assert False\n",
+                }
+            ),
+            content_type="application/zip",
+        )
+
+        response = Client().post(
+            "/",
+            {
+                "error_log": REPO_TRACEBACK,
+                "repro_command": "pytest",
+                "repo_zip": repo_zip,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Failure source: Pasted log")
+        self.assertContains(response, "Captured Command Output")
+        _args, kwargs = mock_analyze_bug.call_args
+        self.assertEqual(kwargs["error_log"], REPO_TRACEBACK)
 
 
 class RepositoryContextTests(SimpleTestCase):
@@ -398,3 +518,29 @@ class RepositoryContextTests(SimpleTestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data["github_url"], "")
+
+    def test_form_requires_failure_signal(self):
+        form = BugReportForm(
+            data={
+                "error_log": "",
+                "repro_command": "",
+                "github_url": "",
+                "code_context": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("Provide a pasted failure log or a repro command.", form.non_field_errors())
+
+    def test_form_requires_repo_for_repro_command_only_mode(self):
+        form = BugReportForm(
+            data={
+                "error_log": "",
+                "repro_command": "pytest",
+                "github_url": "",
+                "code_context": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("Add a repo ZIP or public GitHub URL", form.errors["repro_command"][0])

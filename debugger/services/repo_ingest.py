@@ -6,9 +6,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Iterator
 
 from debugger.services.language_detect import LanguageProfile, detect_language_profile
 from debugger.services.repo_search import CodeSnippet, discover_repo_context, render_snippets_context
@@ -18,6 +19,20 @@ MAX_ZIP_BYTES = 30 * 1024 * 1024
 MAX_UNZIPPED_BYTES = 60 * 1024 * 1024
 MAX_ZIP_MEMBERS = 2500
 CONTEXT_LIMIT = 60_000
+IGNORED_TOP_LEVEL_NAMES = {".ds_store", "__macosx"}
+
+
+@dataclass(frozen=True)
+class RepositoryWorkspace:
+    source: str
+    repo_label: str
+    analysis_root: Path | None
+    execution_root: Path | None
+    errors: list[str]
+
+    @property
+    def has_repo_input(self) -> bool:
+        return self.source in {"zip", "github"}
 
 
 @dataclass(frozen=True)
@@ -65,36 +80,30 @@ def build_repository_context(
     uploaded_zip=None,
     manual_context: str = "",
 ) -> RepositoryContext:
-    errors: list[str] = []
+    with prepare_repository_workspace(github_url=github_url, uploaded_zip=uploaded_zip) as workspace:
+        return build_repository_context_from_workspace(
+            workspace,
+            error_log=error_log,
+            manual_context=manual_context,
+        )
+
+
+def build_repository_context_from_workspace(
+    workspace: RepositoryWorkspace,
+    *,
+    error_log: str,
+    manual_context: str = "",
+) -> RepositoryContext:
+    errors = list(workspace.errors)
     snippets: list[CodeSnippet] = []
     language_profile = detect_language_profile(None, f"{error_log}\n{manual_context}")
-    source = "manual"
-    repo_label = "Failure log and optional extra context"
 
-    if uploaded_zip:
-        source = "zip"
-        repo_label = getattr(uploaded_zip, "name", "Uploaded ZIP")
-        try:
-            snippets, language_profile = _snippets_from_uploaded_zip(
-                uploaded_zip,
-                error_log,
-                manual_context,
-            )
-        except RepoIngestError as exc:
-            errors.append(str(exc))
-    elif github_url.strip():
-        source = "github"
-        repo_label = github_url.strip()
-        try:
-            snippets, repo_label, language_profile = _snippets_from_github(
-                github_url.strip(),
-                error_log,
-                manual_context,
-            )
-        except RepoIngestError as exc:
-            errors.append(str(exc))
+    if workspace.analysis_root and workspace.analysis_root.exists():
+        if error_log.strip():
+            snippets = discover_repo_context(workspace.analysis_root, error_log)
+        language_profile = detect_language_profile(workspace.analysis_root, manual_context)
 
-    if source == "manual" and not snippets:
+    if workspace.source == "manual" and not snippets:
         combined_context = manual_context.strip()
     else:
         combined_context = render_snippets_context(snippets, manual_context)
@@ -102,13 +111,63 @@ def build_repository_context(
             combined_context = manual_context.strip()
 
     return RepositoryContext(
-        source=source,
-        repo_label=repo_label,
+        source=workspace.source,
+        repo_label=workspace.repo_label,
         language_profile=language_profile,
         snippets=snippets,
         errors=errors,
         combined_context=combined_context[:CONTEXT_LIMIT],
     )
+
+
+@contextmanager
+def prepare_repository_workspace(
+    *,
+    github_url: str = "",
+    uploaded_zip=None,
+) -> Iterator[RepositoryWorkspace]:
+    source = "manual"
+    repo_label = "Failure log and optional extra context"
+    analysis_root: Path | None = None
+    execution_root: Path | None = None
+    errors: list[str] = []
+    temp_dir: tempfile.TemporaryDirectory[str] | None = None
+
+    try:
+        if uploaded_zip:
+            source = "zip"
+            repo_label = getattr(uploaded_zip, "name", "Uploaded ZIP")
+            try:
+                temp_dir = tempfile.TemporaryDirectory(prefix="ai-debugger-zip-")
+                analysis_root = Path(temp_dir.name)
+                _extract_uploaded_zip(uploaded_zip, analysis_root)
+                execution_root = _preferred_execution_root(analysis_root)
+            except RepoIngestError as exc:
+                errors.append(str(exc))
+                analysis_root = None
+                execution_root = None
+        elif github_url.strip():
+            source = "github"
+            repo_label = github_url.strip()
+            try:
+                temp_dir = tempfile.TemporaryDirectory(prefix="ai-debugger-github-")
+                analysis_root, repo_label = _download_public_github_repo(github_url.strip(), Path(temp_dir.name))
+                execution_root = _preferred_execution_root(analysis_root)
+            except RepoIngestError as exc:
+                errors.append(str(exc))
+                analysis_root = None
+                execution_root = None
+
+        yield RepositoryWorkspace(
+            source=source,
+            repo_label=repo_label,
+            analysis_root=analysis_root,
+            execution_root=execution_root,
+            errors=errors,
+        )
+    finally:
+        if temp_dir is not None:
+            temp_dir.cleanup()
 
 
 def validate_github_repo_url(url: str) -> str:
@@ -119,11 +178,7 @@ def validate_github_repo_url(url: str) -> str:
     return f"https://github.com/{owner}/{repo}"
 
 
-def _snippets_from_uploaded_zip(
-    uploaded_zip,
-    error_log: str,
-    manual_context: str,
-) -> tuple[list[CodeSnippet], LanguageProfile]:
+def _extract_uploaded_zip(uploaded_zip, destination: Path) -> None:
     if getattr(uploaded_zip, "size", 0) and uploaded_zip.size > MAX_ZIP_BYTES:
         raise RepoIngestError("ZIP upload is too large. Keep it under 30 MB for this demo.")
 
@@ -132,37 +187,41 @@ def _snippets_from_uploaded_zip(
     except (AttributeError, OSError):
         pass
 
-    with tempfile.TemporaryDirectory(prefix="ai-debugger-zip-") as temp_dir:
-        root = Path(temp_dir)
-        try:
-            _safe_extract_zip(uploaded_zip, root)
-        except zipfile.BadZipFile as exc:
-            raise RepoIngestError("That file is not a valid ZIP archive.") from exc
-        return discover_repo_context(root, error_log), detect_language_profile(root, manual_context)
+    try:
+        _safe_extract_zip(uploaded_zip, destination)
+    except zipfile.BadZipFile as exc:
+        raise RepoIngestError("That file is not a valid ZIP archive.") from exc
 
 
-def _snippets_from_github(
-    github_url: str,
-    error_log: str,
-    manual_context: str,
-) -> tuple[list[CodeSnippet], str, LanguageProfile]:
+def _download_public_github_repo(github_url: str, temp_root: Path) -> tuple[Path, str]:
     owner, repo, branch = _parse_github_url(github_url)
     branch = branch or _fetch_default_branch(owner, repo)
-    label = f"{owner}/{repo}"
+    repo_root = temp_root / "repo"
+    repo_root.mkdir()
 
-    with tempfile.TemporaryDirectory(prefix="ai-debugger-github-") as temp_dir:
-        root = Path(temp_dir)
-        archive_path = root / "repo.zip"
-        _download_github_zip(owner, repo, branch, archive_path)
-        extract_root = root / "repo"
-        extract_root.mkdir()
-        with archive_path.open("rb") as archive:
-            _safe_extract_zip(archive, extract_root)
-        return (
-            discover_repo_context(extract_root, error_log),
-            label,
-            detect_language_profile(extract_root, manual_context),
-        )
+    archive_path = temp_root / "repo.zip"
+    _download_github_zip(owner, repo, branch, archive_path)
+
+    with archive_path.open("rb") as archive:
+        _safe_extract_zip(archive, repo_root)
+
+    return repo_root, f"{owner}/{repo}"
+
+
+def _preferred_execution_root(root: Path) -> Path:
+    current = root
+    while True:
+        children = [
+            child
+            for child in current.iterdir()
+            if child.name.lower() not in IGNORED_TOP_LEVEL_NAMES
+        ]
+        dirs = [child for child in children if child.is_dir()]
+        files = [child for child in children if child.is_file()]
+        if len(dirs) == 1 and not files:
+            current = dirs[0]
+            continue
+        return current
 
 
 def _parse_github_url(url: str) -> tuple[str, str, str]:

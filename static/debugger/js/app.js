@@ -1,6 +1,7 @@
 (function () {
   const demoButton = document.getElementById("load-demo");
   const errorLog = document.getElementById("id_error_log");
+  const reproCommand = document.getElementById("id_repro_command");
   const codeContext = document.getElementById("id_code_context");
   const githubUrl = document.getElementById("id_github_url");
   const repoZip = document.getElementById("id_repo_zip");
@@ -22,6 +23,9 @@
 
   demoButton.addEventListener("click", function () {
     errorLog.value = readJsonScript("demo-error-log");
+    if (reproCommand) {
+      reproCommand.value = "";
+    }
     codeContext.value = readJsonScript("demo-code-context");
     if (githubUrl) {
       githubUrl.value = "";

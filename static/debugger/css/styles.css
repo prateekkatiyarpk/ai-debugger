@@ -274,7 +274,8 @@ label {
 }
 
 .required,
-.optional {
+.optional,
+.recommended {
   flex: 0 0 auto;
   border-radius: 999px;
   padding: 4px 9px;
@@ -289,6 +290,11 @@ label {
 
 .optional {
   background: var(--surface-strong);
+  color: var(--green-dark);
+}
+
+.recommended {
+  background: #eef6f0;
   color: var(--green-dark);
 }
 
@@ -684,6 +690,31 @@ label {
 .snippet-card pre {
   max-height: 210px;
   font-size: 0.78rem;
+}
+
+.command-output-panel {
+  margin-bottom: 18px;
+}
+
+.command-output-body {
+  border-top: 1px solid var(--line);
+  padding: 14px 16px 16px;
+}
+
+.command-meta-row {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.command-output-actions {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.command-output-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .section-kicker {

@@ -6,13 +6,25 @@ from debugger.services.repo_ingest import MAX_ZIP_BYTES, RepoIngestError, valida
 class BugReportForm(forms.Form):
     error_log = forms.CharField(
         label="Stack trace, error log, failing test, or build output",
-        required=True,
+        required=False,
         max_length=60000,
         widget=forms.Textarea(
             attrs={
                 "class": "textarea textarea-error",
                 "rows": 16,
                 "placeholder": "Paste a stack trace, failing test output, runtime error, or build log here...",
+                "spellcheck": "false",
+            }
+        ),
+    )
+    repro_command = forms.CharField(
+        label="Optional repro command",
+        required=False,
+        max_length=300,
+        widget=forms.TextInput(
+            attrs={
+                "class": "text-input",
+                "placeholder": "pytest",
                 "spellcheck": "false",
             }
         ),
@@ -55,6 +67,12 @@ class BugReportForm(forms.Form):
     def clean_github_url(self):
         return self.cleaned_data.get("github_url", "").strip()
 
+    def clean_error_log(self):
+        return self.cleaned_data.get("error_log", "").strip()
+
+    def clean_repro_command(self):
+        return self.cleaned_data.get("repro_command", "").strip()
+
     def clean_repo_zip(self):
         uploaded_file = self.cleaned_data.get("repo_zip")
         if not uploaded_file:
@@ -69,12 +87,23 @@ class BugReportForm(forms.Form):
         cleaned_data = super().clean()
         if cleaned_data.get("repo_zip"):
             cleaned_data["github_url"] = ""
-            return cleaned_data
+        else:
+            github_url = cleaned_data.get("github_url", "")
+            if github_url:
+                try:
+                    cleaned_data["github_url"] = validate_github_repo_url(github_url)
+                except RepoIngestError as exc:
+                    self.add_error("github_url", str(exc))
 
-        github_url = cleaned_data.get("github_url", "")
-        if github_url:
-            try:
-                cleaned_data["github_url"] = validate_github_repo_url(github_url)
-            except RepoIngestError as exc:
-                self.add_error("github_url", str(exc))
+        error_log = cleaned_data.get("error_log", "").strip()
+        repro_command = cleaned_data.get("repro_command", "").strip()
+        has_repo = bool(cleaned_data.get("repo_zip") or cleaned_data.get("github_url"))
+
+        if not error_log and not repro_command:
+            self.add_error(None, "Provide a pasted failure log or a repro command.")
+        elif repro_command and not error_log and not has_repo:
+            self.add_error(
+                "repro_command",
+                "Add a repo ZIP or public GitHub URL to run a repro command.",
+            )
         return cleaned_data

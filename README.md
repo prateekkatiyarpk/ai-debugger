@@ -17,8 +17,8 @@ The app gives you:
 Normal flow:
 
 1. Paste a stack trace, error log, failing test output, or build error.
-2. Provide either a public GitHub repo URL or upload a small repository ZIP.
-3. AI Debugger extracts likely filenames, line numbers, templates/components, packages, symbols, and nearby snippets before asking the LLM for a diagnosis.
+2. Or provide a repro command together with either a public GitHub repo URL or a small repository ZIP.
+3. AI Debugger extracts likely filenames, line numbers, templates/components, packages, symbols, nearby snippets, and optional captured command output before asking the LLM for a diagnosis.
 
 If repo access is unavailable, use **Optional extra context** as a manual fallback.
 
@@ -58,6 +58,8 @@ Click **Load Demo Example**, then **Analyze Failure**. If `OPENAI_API_KEY` is no
 
 - No auth, no background jobs, and no database-backed features.
 - The LLM call lives in `debugger/services/debugger.py`.
+- Repro command execution is best-effort and meant for trusted local/demo use. ZIP upload remains the most reliable repo path.
+- Production deployments keep command execution disabled unless `AI_DEBUGGER_ENABLE_COMMAND_EXECUTION=1` is set explicitly.
 - Bad model output is handled with a friendly fallback and the raw response is shown instead of crashing the page.
 - API keys are read from environment variables only.
 
@@ -92,6 +94,7 @@ DJANGO_SECRET_KEY=<generated secret>
 DJANGO_ALLOWED_HOSTS=.onrender.com,your-domain.com
 OPENAI_API_KEY=<your key>
 AI_DEBUGGER_MODEL=gpt-5.4-mini
+AI_DEBUGGER_ENABLE_COMMAND_EXECUTION=0
 ```
 
 For a manual host, the important commands are:

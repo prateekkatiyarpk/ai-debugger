@@ -13,5 +13,7 @@ services:
         value: ".onrender.com"
       - key: AI_DEBUGGER_MODEL
         value: "gpt-5.4-mini"
+      - key: AI_DEBUGGER_ENABLE_COMMAND_EXECUTION
+        value: "0"
       - key: OPENAI_API_KEY
         sync: false

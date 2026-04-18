@@ -24,7 +24,7 @@
         </div>
         <p class="eyebrow">Evidence-backed failure triage</p>
         <h1 id="page-title">AI Debugger</h1>
-        <p class="lede">Paste a stack trace, failing test, or build log. Attach a repo ZIP or public GitHub URL. Get an evidence-backed root cause, ranked fixes, and one validation step.</p>
+        <p class="lede">Paste a stack trace, failing test, or build log. Or attach a repo and run a repro command to capture the failure automatically. Get an evidence-backed root cause, ranked fixes, and one validation step.</p>
       </div>
       <div class="signal-panel hero-status-panel" aria-hidden="true">
         <p class="panel-label">Analysis path</p>
@@ -59,7 +59,7 @@
           <div class="field-block">
             <div class="field-header">
               <label for="{{ form.error_log.id_for_label }}">{{ form.error_log.label }}</label>
-              <span class="required">Required</span>
+              <span class="recommended">Recommended</span>
             </div>
             {{ form.error_log }}
             {% for error in form.error_log.errors %}
@@ -95,6 +95,15 @@
                 {% endfor %}
               </div>
 
+              <div class="field-block">
+                <label for="{{ form.repro_command.id_for_label }}">{{ form.repro_command.label }}</label>
+                {{ form.repro_command }}
+                <p class="field-help">Best effort only. Examples: <code>pytest</code>, <code>python manage.py test</code>, <code>npm test</code>, <code>mvn test</code>.</p>
+                {% for error in form.repro_command.errors %}
+                  <p class="field-error">{{ error }}</p>
+                {% endfor %}
+              </div>
+
               <div class="field-block manual-context-block">
                 <label for="{{ form.code_context.id_for_label }}">{{ form.code_context.label }}</label>
                 {{ form.code_context }}
@@ -114,10 +123,10 @@
 
         <div class="submit-status" id="submit-status" aria-live="polite" hidden>
           <span class="spinner" aria-hidden="true"></span>
-          <span>Analyzing the failure log and repository context.</span>
+          <span>Capturing the failure signal and analyzing repository context.</span>
         </div>
 
-        <p class="input-note">Best results come from the final error, a public repo or ZIP, and any extra context that explains the failing command or expected behavior.</p>
+        <p class="input-note">Use a pasted log when you already have the failure. Use a repro command when the repo can reproduce it. ZIP remains the most reliable repo path.</p>
       </form>
     </section>
 
@@ -130,8 +139,8 @@
         <div class="workflow-grid">
           <article class="workflow-step">
             <span class="step-badge">01</span>
-            <h3>Paste failure log</h3>
-            <p>Start with a stack trace, failing test output, build error, or runtime log.</p>
+            <h3>Paste or reproduce</h3>
+            <p>Start with a stack trace, failing test output, build error, runtime log, or a repro command.</p>
           </article>
           <article class="workflow-step">
             <span class="step-badge">02</span>
@@ -155,6 +164,7 @@
             <h2 id="results-title">Diagnosis Complete</h2>
             <p class="diagnosis-lede">{{ analysis.issue_summary }}</p>
             <div class="badge-row" aria-label="Detected repository metadata">
+              <span class="meta-badge">Failure source: {{ failure_source_label }}</span>
               <span class="meta-badge">Language: {{ analysis.detected_language }}</span>
               <span class="meta-badge">Framework: {{ analysis.detected_framework }}</span>
               <span class="meta-badge">Bug type: {{ analysis.bug_type }}</span>
@@ -197,6 +207,13 @@
           </div>
         {% endif %}
 
+        {% if command_capture and command_capture.error_message and not command_capture.has_output %}
+          <div class="notice">
+            <strong>Command capture fallback.</strong>
+            <span>{{ command_capture.error_message }}</span>
+          </div>
+        {% endif %}
+
         {% if repo_context and repo_context.has_repo_input %}
           <section class="context-section" aria-labelledby="context-title">
             <div class="section-kicker context-heading">
@@ -236,6 +253,28 @@
               <p class="context-empty">No strongly matching repository files were found. The analysis used the failure log and any optional extra context instead.</p>
             {% endif %}
           </section>
+        {% endif %}
+
+        {% if command_capture and command_capture.has_output %}
+          <details class="why-panel command-output-panel">
+            <summary>Captured Command Output{% if command_output_used_for_analysis %} Used for Analysis{% endif %}</summary>
+            <div class="command-output-body">
+              <div class="badge-row command-meta-row">
+                <span class="meta-badge">Command: {{ command_capture.command }}</span>
+                {% if command_capture.exit_code is not None %}
+                  <span class="meta-badge">Exit code: {{ command_capture.exit_code }}</span>
+                {% endif %}
+                {% if command_capture.timed_out %}
+                  <span class="meta-badge">Timed out</span>
+                {% endif %}
+              </div>
+              <div class="section-title-row command-output-actions">
+                <p class="command-output-copy">Captured stdout and stderr from the repro command.</p>
+                <button type="button" class="button button-small button-secondary" data-copy-source="captured-command-output">Copy Output</button>
+              </div>
+              <pre><code id="captured-command-output">{{ command_capture.display_output }}</code></pre>
+            </div>
+          </details>
         {% endif %}
 
         <section class="timeline-section" aria-labelledby="timeline-title">
