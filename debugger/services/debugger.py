@@ -117,6 +117,89 @@ class DebuggerAnalysis:
     def confidence_percent(self) -> int:
         return round(self.confidence * 100)
 
+    @property
+    def confidence_label(self) -> str:
+        if self.confidence >= 0.75:
+            return "High confidence"
+        if self.confidence >= 0.45:
+            return "Medium confidence"
+        return "Low confidence"
+
+    @property
+    def confidence_explanation(self) -> str:
+        if self.confidence >= 0.75:
+            return "The traceback signal, suspected location, and minimal fix all point in the same direction."
+        if self.confidence >= 0.45:
+            return "There is enough signal for a useful first fix, but more nearby code would make the call stronger."
+        return "Treat this as a starting point. Add the final traceback frame and nearby code to improve certainty."
+
+    @property
+    def timeline_steps(self) -> list[dict[str, str]]:
+        return [
+            {
+                "badge": "01",
+                "title": "Traceback parsed",
+                "detail": "The failure output was reduced to the strongest debugging signal.",
+            },
+            {
+                "badge": "02",
+                "title": "Django signal identified",
+                "detail": self.issue_summary,
+            },
+            {
+                "badge": "03",
+                "title": "Suspected location inferred",
+                "detail": f"{self.suspected_location.file} - {self.suspected_location.function}",
+            },
+            {
+                "badge": "04",
+                "title": "Minimal fix proposed",
+                "detail": self.suggested_fix,
+            },
+            {
+                "badge": "05",
+                "title": "Regression test generated",
+                "detail": self.regression_test,
+            },
+        ]
+
+    @property
+    def diagnosis_reasons(self) -> list[str]:
+        text = " ".join(
+            [
+                self.issue_summary,
+                self.root_cause,
+                self.suggested_fix,
+                self.patch_diff,
+                self.regression_test,
+                self.suspected_location.file,
+                self.suspected_location.function,
+            ]
+        ).lower()
+        reasons: list[str] = []
+
+        if "template" in text or "render" in text:
+            reasons.append("The failure points into Django rendering or template evaluation.")
+        if "reverse" in text or "noreversematch" in text or "url" in text:
+            reasons.append("Django URL reversing is part of the failing path.")
+        if "pk" in text or "primary key" in text:
+            reasons.append("The diagnosis depends on whether a primary key is available at render time.")
+        if "values(" in text or "selected fields" in text or "dict" in text:
+            reasons.append("The queryset/context shape appears to omit a value used later by the template.")
+        if self.suspected_location.file != "Unknown":
+            reasons.append(f"The most actionable location is {self.suspected_location.file}.")
+        if self.patch_diff:
+            reasons.append("The patch only changes the smallest surface needed by the suspected failure.")
+
+        if not reasons:
+            reasons = [
+                "The issue summary and root cause agree on one primary failure path.",
+                "The suspected location gives a concrete place to inspect first.",
+                "The suggested fix is intentionally narrow so it can be tested quickly.",
+            ]
+
+        return reasons[:5]
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "issue_summary": self.issue_summary,

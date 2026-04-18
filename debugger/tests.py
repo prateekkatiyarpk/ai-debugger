@@ -36,6 +36,10 @@ class DebuggerServiceTests(SimpleTestCase):
             analysis.as_dict()["suspected_location"]["function"],
             "post_list",
         )
+        self.assertEqual(analysis.confidence_label, "High confidence")
+        self.assertEqual(len(analysis.timeline_steps), 5)
+        self.assertIn("Traceback parsed", analysis.timeline_steps[0]["title"])
+        self.assertTrue(analysis.diagnosis_reasons)
 
     def test_analysis_validation_rejects_missing_required_fields(self):
         with self.assertRaises(ValueError):
@@ -69,6 +73,8 @@ class DebuggerViewTests(SimpleTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Debugging Result")
+        self.assertContains(response, "Diagnosis Complete")
+        self.assertContains(response, "Analysis Timeline")
+        self.assertContains(response, "Why this diagnosis?")
         self.assertContains(response, "Copy JSON")
         self.assertContains(response, "The post list template tries to reverse")

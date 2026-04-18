@@ -76,6 +76,11 @@ h3 {
   font-size: 1rem;
 }
 
+h4 {
+  margin: 0 0 4px;
+  font-size: 0.96rem;
+}
+
 .lede {
   max-width: 680px;
   margin: 16px 0 0;
@@ -291,15 +296,78 @@ label {
   font-size: 0.92rem;
 }
 
+.empty-state {
+  margin-top: 24px;
+  padding: 24px 0 4px;
+}
+
+.empty-state-heading {
+  margin-bottom: 14px;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.workflow-step {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--surface);
+}
+
+.step-badge,
+.timeline-badge {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--green-dark);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.workflow-step h3 {
+  margin-top: 12px;
+}
+
+.workflow-step p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .results-band {
   margin-top: 24px;
   padding: 22px;
 }
 
-.results-heading {
+.results-heading,
+.diagnosis-hero {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
   margin-bottom: 18px;
+}
+
+.diagnosis-hero {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+}
+
+.diagnosis-lede {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 800;
 }
 
 .result-meta span {
@@ -307,6 +375,13 @@ label {
   margin-left: 10px;
   border-left: 1px solid var(--line);
   padding-left: 10px;
+  color: var(--muted);
+}
+
+.result-meta span:first-child {
+  margin-left: 0;
+  border-left: 0;
+  padding-left: 0;
 }
 
 .result-tools {
@@ -319,6 +394,10 @@ label {
 .confidence-meter {
   width: 220px;
   flex: 0 0 220px;
+}
+
+.hero-confidence {
+  margin-top: 2px;
 }
 
 .confidence-meter span {
@@ -357,6 +436,38 @@ label {
   border-color: #c9ded0;
   background: var(--surface-strong);
   color: #234538;
+}
+
+.timeline-section {
+  margin-bottom: 18px;
+}
+
+.section-kicker {
+  margin-bottom: 12px;
+}
+
+.timeline-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.timeline-item {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfb;
+}
+
+.timeline-item p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.timeline-badge {
+  margin-bottom: 10px;
 }
 
 .result-grid {
@@ -412,6 +523,40 @@ label {
   font-weight: 900;
 }
 
+.confidence-label {
+  margin-top: 4px;
+  color: var(--green-dark);
+  font-weight: 900;
+}
+
+.confidence-copy {
+  margin-top: 8px;
+  font-size: 0.92rem;
+}
+
+.why-panel {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.why-panel summary {
+  min-height: 52px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.why-panel ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding: 14px 16px 16px 34px;
+  color: var(--muted);
+}
+
 .diff-block {
   margin-top: 14px;
 }
@@ -457,8 +602,13 @@ code {
 @media (max-width: 900px) {
   .intro-band,
   .form-grid,
-  .result-grid {
+  .result-grid,
+  .workflow-grid {
     grid-template-columns: 1fr;
+  }
+
+  .timeline-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .signal-panel {
@@ -487,6 +637,7 @@ code {
 
   .action-row,
   .results-heading,
+  .diagnosis-hero,
   .notice,
   .result-tools,
   .section-title-row {
@@ -512,5 +663,9 @@ code {
     margin: 6px 0 0;
     border-left: 0;
     padding-left: 0;
+  }
+
+  .timeline-list {
+    grid-template-columns: 1fr;
   }
 }
