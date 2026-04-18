@@ -236,6 +236,12 @@ h4 {
   min-width: 0;
 }
 
+.log-input-block {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .field-header,
 .action-row,
 .results-heading {
@@ -305,6 +311,7 @@ label {
 }
 
 .textarea-error {
+  flex: 1 1 auto;
   min-height: 320px;
 }
 
