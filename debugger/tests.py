@@ -269,6 +269,13 @@ class ReproRunnerTests(SimpleTestCase):
 
 
 class DebuggerViewTests(SimpleTestCase):
+    def test_index_renders_theme_toggle(self):
+        response = Client().get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="theme-toggle"')
+        self.assertContains(response, 'ai-debugger-theme')
+
     @patch.dict(os.environ, {"OPENAI_API_KEY": ""})
     def test_demo_post_renders_structured_result_without_api_key(self):
         response = Client().post(

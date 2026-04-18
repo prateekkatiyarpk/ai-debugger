@@ -5,6 +5,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI Debugger</title>
+  <script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("ai-debugger-theme");
+        var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var theme = storedTheme || (prefersDark ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (error) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="{% static 'debugger/css/styles.css' %}">
 </head>
 <body>
@@ -15,6 +27,13 @@
   {% endif %}
 
   <main class="page-shell">
+    <div class="page-toolbar">
+      <button type="button" class="button button-secondary button-small theme-toggle" id="theme-toggle" aria-label="Toggle color theme" aria-pressed="false">
+        <span class="theme-toggle-label">Theme</span>
+        <span class="theme-toggle-value" id="theme-toggle-value">Light</span>
+      </button>
+    </div>
+
     <section class="intro-band" aria-labelledby="page-title">
       <div class="hero-copy">
         <div class="hero-badge-row" aria-label="Product strengths">

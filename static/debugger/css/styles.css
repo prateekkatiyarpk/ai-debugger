@@ -1,18 +1,73 @@
 :root {
+  color-scheme: light;
   --bg: #f6f7f9;
   --surface: #ffffff;
   --surface-strong: #eef6f0;
+  --surface-muted: #fbfcfb;
+  --surface-elevated: #ffffff;
+  --surface-accent: #fbfdfb;
   --ink: #18211f;
   --muted: #59645f;
   --line: #d9e0dc;
+  --line-strong: #c9ded0;
+  --line-accent: #bdd9c6;
   --green: #0f8f61;
   --green-dark: #0b6f4c;
   --red: #d94f45;
   --yellow: #d6a72c;
+  --danger-bg: #fdebea;
+  --danger-ink: #9f2f28;
+  --notice-bg: #fff5f3;
+  --notice-border: #f1c4bd;
+  --notice-ink: #78352f;
   --code-bg: #161b1a;
   --code-ink: #eaf2ee;
+  --raw-code-bg: #252422;
+  --focus-ring: rgba(15, 143, 97, 0.16);
+  --spinner-track: rgba(15, 143, 97, 0.24);
+  --meter-track: #e6ece8;
+  --status-ink: #234538;
+  --hero-badge-bg: #ffffff;
+  --hero-badge-border: #cbd8d1;
+  --button-primary-ink: #ffffff;
   --shadow: 0 16px 40px rgba(24, 33, 31, 0.08);
   --shadow-soft: 0 12px 30px rgba(24, 33, 31, 0.06);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1311;
+  --surface: #111917;
+  --surface-strong: #13241d;
+  --surface-muted: #0f1715;
+  --surface-elevated: #151f1c;
+  --surface-accent: #102019;
+  --ink: #e9f0ec;
+  --muted: #a3b3ad;
+  --line: #26352f;
+  --line-strong: #2f5143;
+  --line-accent: #29664f;
+  --green: #26c488;
+  --green-dark: #8fe0be;
+  --red: #f0756b;
+  --yellow: #e0b44c;
+  --danger-bg: #3a1d1b;
+  --danger-ink: #ffb4ae;
+  --notice-bg: #221513;
+  --notice-border: #6a3a35;
+  --notice-ink: #f1c1bb;
+  --code-bg: #0a1110;
+  --code-ink: #edf6f2;
+  --raw-code-bg: #0a0f0d;
+  --focus-ring: rgba(38, 196, 136, 0.18);
+  --spinner-track: rgba(38, 196, 136, 0.3);
+  --meter-track: #22312c;
+  --status-ink: #a6e7cb;
+  --hero-badge-bg: #111917;
+  --hero-badge-border: #31433c;
+  --button-primary-ink: #05281c;
+  --shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.28);
 }
 
 * {
@@ -25,6 +80,7 @@ body {
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.5;
+  transition: background-color 0.18s ease, color 0.18s ease;
 }
 
 button,
@@ -37,6 +93,12 @@ textarea {
   width: min(1220px, calc(100% - 32px));
   margin: 0 auto;
   padding: 24px 0 48px;
+}
+
+.page-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
 }
 
 .intro-band {
@@ -72,15 +134,40 @@ textarea {
 }
 
 .hero-badge {
-  border: 1px solid #cbd8d1;
-  background: #fff;
+  border: 1px solid var(--hero-badge-border);
+  background: var(--hero-badge-bg);
   color: var(--muted);
 }
 
 .hero-badge-strong {
-  border-color: #bdd9c6;
+  border-color: var(--line-accent);
   background: var(--surface-strong);
   color: var(--green-dark);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.theme-toggle-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.theme-toggle-value {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: var(--surface-strong);
+  color: var(--green-dark);
+  font-size: 0.8rem;
+  font-weight: 900;
 }
 
 .eyebrow {
@@ -139,7 +226,7 @@ h4 {
 
 .hero-status-panel {
   align-self: center;
-  border-color: #cbd8d1;
+  border-color: var(--hero-badge-border);
 }
 
 .signal-row {
@@ -279,8 +366,8 @@ label {
 }
 
 .required {
-  background: #fdebea;
-  color: #9f2f28;
+  background: var(--danger-bg);
+  color: var(--danger-ink);
 }
 
 .optional {
@@ -289,7 +376,7 @@ label {
 }
 
 .recommended {
-  background: #eef6f0;
+  background: var(--surface-strong);
   color: var(--green-dark);
 }
 
@@ -302,7 +389,7 @@ label {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  background: #fbfcfb;
+  background: var(--surface-muted);
   color: var(--ink);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 0.92rem;
@@ -328,7 +415,7 @@ label {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0 14px;
-  background: #fbfcfb;
+  background: var(--surface-muted);
   color: var(--ink);
   outline: none;
 }
@@ -341,7 +428,7 @@ label {
 .text-input:focus,
 .file-input:focus {
   border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(15, 143, 97, 0.16);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .repo-access-panel {
@@ -349,7 +436,7 @@ label {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
-  background: #fbfcfb;
+  background: var(--surface-muted);
 }
 
 .repo-input-stack {
@@ -364,7 +451,7 @@ label {
 
 .field-error {
   margin: 8px 0 0;
-  color: #9f2f28;
+  color: var(--danger-ink);
   font-size: 0.9rem;
 }
 
@@ -402,7 +489,7 @@ label {
 
 .button-primary {
   background: var(--green);
-  color: #fff;
+  color: var(--button-primary-ink);
 }
 
 .button-primary:hover {
@@ -411,7 +498,7 @@ label {
 
 .button-secondary {
   border-color: var(--line);
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -425,11 +512,11 @@ label {
   gap: 10px;
   min-height: 44px;
   margin-top: 14px;
-  border: 1px solid #c9ded0;
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 10px 12px;
   background: var(--surface-strong);
-  color: #234538;
+  color: var(--status-ink);
   font-weight: 800;
 }
 
@@ -441,7 +528,7 @@ label {
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
-  border: 2px solid rgba(15, 143, 97, 0.24);
+  border: 2px solid var(--spinner-track);
   border-top-color: var(--green);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -540,7 +627,7 @@ label {
   display: inline-flex;
   min-height: 30px;
   align-items: center;
-  border: 1px solid #c9ded0;
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 4px 9px;
   background: var(--surface-strong);
@@ -590,7 +677,7 @@ label {
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e6ece8;
+  background: var(--meter-track);
 }
 
 .meter-fill {
@@ -604,17 +691,17 @@ label {
   gap: 10px;
   align-items: flex-start;
   margin-bottom: 18px;
-  border: 1px solid #f1c4bd;
+  border: 1px solid var(--notice-border);
   border-radius: 8px;
   padding: 12px;
-  background: #fff5f3;
-  color: #78352f;
+  background: var(--notice-bg);
+  color: var(--notice-ink);
 }
 
 .notice-calm {
-  border-color: #c9ded0;
+  border-color: var(--line-strong);
   background: var(--surface-strong);
-  color: #234538;
+  color: var(--status-ink);
 }
 
 .context-heading {
@@ -651,7 +738,7 @@ label {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
-  background: #fff;
+  background: var(--surface-elevated);
 }
 
 .snippet-header {
@@ -720,7 +807,7 @@ label {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
-  background: #fbfcfb;
+  background: var(--surface-muted);
 }
 
 .timeline-item p {
@@ -746,7 +833,7 @@ label {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
-  background: #fff;
+  background: var(--surface-elevated);
 }
 
 .result-card p,
@@ -802,7 +889,7 @@ label {
   margin-top: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-elevated);
 }
 
 .why-panel summary {
@@ -866,12 +953,12 @@ label {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
-  background: #fff;
+  background: var(--surface-elevated);
 }
 
 .fix-card-primary {
-  border-color: #bdd9c6;
-  background: #fbfdfb;
+  border-color: var(--line-accent);
+  background: var(--surface-accent);
 }
 
 .details-panel-body {
@@ -933,7 +1020,7 @@ code {
 }
 
 .raw-response pre {
-  background: #252422;
+  background: var(--raw-code-bg);
 }
 
 @keyframes spin {
@@ -969,6 +1056,10 @@ code {
   .page-shell {
     width: min(100% - 20px, 1180px);
     padding-top: 18px;
+  }
+
+  .page-toolbar .button {
+    width: auto;
   }
 
   h1 {
