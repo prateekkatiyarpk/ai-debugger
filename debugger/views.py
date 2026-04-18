@@ -1,4 +1,6 @@
+from django.http import HttpResponse
 from django.shortcuts import render
+from django.urls import reverse
 
 from debugger.demo import DEMO_CODE_CONTEXT, DEMO_ERROR_LOG
 from debugger.forms import BugReportForm
@@ -91,3 +93,21 @@ def index(request):
             "demo_code_context": DEMO_CODE_CONTEXT,
         },
     )
+
+
+def intentional_failure(request):
+    demo_post = _load_broken_demo_post()
+    detail_url = _build_demo_detail_url(demo_post)
+    return HttpResponse(detail_url)
+
+
+def demo_detail(request, pk):
+    return HttpResponse(f"Demo detail {pk}")
+
+
+def _load_broken_demo_post():
+    return {"title": "Intentional prod failure"}
+
+
+def _build_demo_detail_url(post):
+    return reverse("debugger:demo-detail", kwargs={"pk": post.get("pk", "")})

@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import NoReverseMatch
 from django.test import Client, SimpleTestCase
 
 from debugger.demo import DEMO_ANALYSIS, DEMO_CODE_CONTEXT, DEMO_ERROR_LOG
@@ -23,6 +24,7 @@ from debugger.services.language_detect import detect_language_profile
 from debugger.services.repo_ingest import build_repository_context
 from debugger.services.repo_search import discover_repo_context, parse_traceback_clues
 from debugger.services.repro_runner import CommandCapture, capture_repro_command
+from debugger.views import _build_demo_detail_url
 
 
 REPO_TRACEBACK = """Traceback (most recent call last):
@@ -260,6 +262,15 @@ class DebuggerViewTests(SimpleTestCase):
         self.assertIn("posts/views.py", kwargs["code_context"])
         self.assertEqual(kwargs["detected_language"], "Python")
         self.assertEqual(kwargs["detected_framework"], "Django")
+
+    def test_intentional_failure_route_returns_500(self):
+        response = Client(raise_request_exception=False).get("/__demo__/intentional-failure/")
+
+        self.assertEqual(response.status_code, 500)
+
+    def test_intentional_failure_route_raises_no_reverse_match(self):
+        with self.assertRaises(NoReverseMatch):
+            _build_demo_detail_url({"title": "Intentional prod failure"})
 
     @patch("debugger.views.analyze_bug")
     @patch("debugger.views.capture_repro_command")
