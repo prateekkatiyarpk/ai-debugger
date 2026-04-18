@@ -29,7 +29,7 @@ export OPENAI_API_KEY="your-api-key"
 Optional model override:
 
 ```bash
-export AI_DEBUGGER_MODEL="gpt-4o-mini"
+export AI_DEBUGGER_MODEL="gpt-5.4"
 ```
 
 ## Run
@@ -81,7 +81,7 @@ DJANGO_DEBUG=0
 DJANGO_SECRET_KEY=<generated secret>
 DJANGO_ALLOWED_HOSTS=.onrender.com,your-domain.com
 OPENAI_API_KEY=<your key>
-AI_DEBUGGER_MODEL=gpt-4o-mini
+AI_DEBUGGER_MODEL=gpt-5.4
 ```
 
 For a manual host, the important commands are:
