@@ -2,6 +2,8 @@
   const demoButton = document.getElementById("load-demo");
   const errorLog = document.getElementById("id_error_log");
   const codeContext = document.getElementById("id_code_context");
+  const githubUrl = document.getElementById("id_github_url");
+  const repoZip = document.getElementById("id_repo_zip");
   const form = document.getElementById("debug-form");
   const submitStatus = document.getElementById("submit-status");
   const submitButton = document.querySelector("[data-submit-button]");
@@ -21,6 +23,12 @@
   demoButton.addEventListener("click", function () {
     errorLog.value = readJsonScript("demo-error-log");
     codeContext.value = readJsonScript("demo-code-context");
+    if (githubUrl) {
+      githubUrl.value = "";
+    }
+    if (repoZip) {
+      repoZip.value = "";
+    }
     errorLog.focus();
   });
 

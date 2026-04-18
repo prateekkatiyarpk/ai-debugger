@@ -27,6 +27,7 @@ body {
 }
 
 button,
+input,
 textarea {
   font: inherit;
 }
@@ -165,6 +166,15 @@ h4 {
   min-height: 32px;
 }
 
+.repo-access-heading {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.repo-access-heading h2 {
+  margin-top: 0;
+}
+
 label {
   font-weight: 800;
 }
@@ -205,15 +215,63 @@ label {
   outline: none;
 }
 
-.textarea:focus {
+.textarea-manual {
+  min-height: 210px;
+}
+
+.text-input,
+.file-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: #fbfcfb;
+  color: var(--ink);
+  outline: none;
+}
+
+.file-input {
+  padding: 11px 14px;
+}
+
+.textarea:focus,
+.text-input:focus,
+.file-input:focus {
   border-color: var(--green);
   box-shadow: 0 0 0 3px rgba(15, 143, 97, 0.16);
+}
+
+.repo-access-panel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fbfcfb;
+}
+
+.repo-input-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.manual-context-block {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
 }
 
 .field-error {
   margin: 8px 0 0;
   color: #9f2f28;
   font-size: 0.9rem;
+}
+
+.field-help {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
 }
 
 .action-row {
@@ -442,6 +500,77 @@ label {
   margin-bottom: 18px;
 }
 
+.context-section {
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fbfcfb;
+}
+
+.context-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.context-heading p:not(.eyebrow) {
+  margin: 6px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.context-count {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--surface-strong);
+  color: var(--green-dark);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.snippet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.snippet-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.snippet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.snippet-header span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.8rem;
+}
+
+.snippet-card p,
+.context-empty {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.snippet-card pre {
+  max-height: 210px;
+  font-size: 0.78rem;
+}
+
 .section-kicker {
   margin-bottom: 12px;
 }
@@ -603,7 +732,8 @@ code {
   .intro-band,
   .form-grid,
   .result-grid,
-  .workflow-grid {
+  .workflow-grid,
+  .snippet-grid {
     grid-template-columns: 1fr;
   }
 
@@ -639,6 +769,8 @@ code {
   .results-heading,
   .diagnosis-hero,
   .notice,
+  .context-heading,
+  .snippet-header,
   .result-tools,
   .section-title-row {
     align-items: stretch;
