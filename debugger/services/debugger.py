@@ -8,22 +8,36 @@ from typing import Any
 from debugger.demo import DEMO_ANALYSIS, DEMO_CODE_CONTEXT, DEMO_ERROR_LOG
 
 
-SYSTEM_PROMPT = """You are a senior failure triage assistant for software repositories.
-Work for any language/framework, with strongest support for Python repos.
-Prioritize evidence from the error log and discovered repository snippets.
-Prefer one clear diagnosis over many vague guesses.
-For Python repos, use traceback-first reasoning and framework-specific fix heuristics.
-For non-Python repos, stay useful but conservative; leave patch diffs empty when evidence is weak.
-Return strict JSON only. Do not include markdown, commentary, or code fences."""
+SHARED_JSON_INSTRUCTIONS = """Return strict JSON only. Do not include markdown, commentary, or code fences.
+Use one shared schema for every language and framework.
+Favor correctness over completeness: one well-supported diagnosis is better than several guesses.
+Preserve evidence_used with concrete facts from the log, discovered snippets, or manual context.
+Preserve all three ranked fix option objects: recommended_fix, safest_fix, and alternative_fix.
+If any patch diff is uncertain, return an empty string for that patch_diff."""
+
+PYTHON_SYSTEM_PROMPT = f"""You are a senior Python debugging assistant.
+Use Python-optimized traceback reasoning: start from the final exception, then inspect app frames, line numbers, call boundaries, imports, object shapes, and test output.
+Prefer Python-native fixes that change the smallest realistic surface.
+For regression tests, prefer pytest or unittest style based on the available context.
+{SHARED_JSON_INSTRUCTIONS}"""
+
+GENERIC_SYSTEM_PROMPT = f"""You are a senior code-debugging triage assistant for arbitrary software repositories.
+Use generic failure triage: inspect stack traces, build logs, test output, file paths, symbols, dependency/config files, and nearby snippets.
+Infer language and framework conventions when evidence supports them, but stay conservative when the repo is not Python.
+For non-Python repos, leave patch diffs empty unless the evidence clearly supports a minimal change.
+{SHARED_JSON_INSTRUCTIONS}"""
 
 USER_PROMPT_TEMPLATE = """Analyze this repository failure.
 
 Detected language: {detected_language}
 Detected framework: {detected_framework}
+Prompt mode: {prompt_mode}
+
+{framework_guidance}
 
 Return a JSON object that matches the required schema. Use concise, evidence-backed
-language. Provide three ranked fix options. Only include patch diffs when the
-evidence is strong enough to support a minimal change.
+language. The detected_language and detected_framework fields should match the
+detected values above unless the repository context gives stronger evidence.
 
 Failure log:
 ```text
@@ -34,6 +48,22 @@ Auto-discovered repository context and optional extra context:
 ```text
 {code_context}
 ```"""
+
+
+FRAMEWORK_GUIDANCE = {
+    "django": """Framework-specific guidance for Django:
+- Prioritize URL routing, view/template contracts, ORM/queryset shapes, forms, serializers, middleware, settings, and migrations when they appear in the evidence.
+- For template or URL reversing failures, verify that the view context supplies the exact fields used by the template or route.
+- Regression tests should prefer Django TestCase, pytest-django, or the Django test client when relevant.""",
+    "flask": """Framework-specific guidance for Flask:
+- Prioritize routes, blueprints, request context, Jinja templates, config, extensions, and response handling when they appear in the evidence.
+- For request or template failures, verify the route contract and template variables before suggesting broader changes.
+- Regression tests should prefer pytest with Flask's test client when relevant.""",
+    "fastapi": """Framework-specific guidance for FastAPI:
+- Prioritize routing, dependency injection, Pydantic models, request/response validation, async boundaries, and status codes when they appear in the evidence.
+- For validation failures, distinguish schema mismatch from business logic bugs.
+- Regression tests should prefer FastAPI TestClient or async HTTP client patterns when relevant.""",
+}
 
 
 FIX_OPTION_SCHEMA = {
@@ -307,24 +337,74 @@ def _call_openai(
         model=model,
         temperature=0.1,
         response_format=DEBUGGER_RESPONSE_FORMAT,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": USER_PROMPT_TEMPLATE.format(
-                    detected_language=detected_language or "Unknown",
-                    detected_framework=detected_framework or "Unknown",
-                    error_log=error_log,
-                    code_context=code_context or "No repository context provided.",
-                ),
-            },
-        ],
+        messages=build_prompt_messages(
+            error_log=error_log,
+            code_context=code_context,
+            detected_language=detected_language,
+            detected_framework=detected_framework,
+        ),
     )
 
     content = response.choices[0].message.content
     if not content:
         raise DebuggerServiceError("The LLM returned an empty response.")
     return content
+
+
+def build_prompt_messages(
+    *,
+    error_log: str,
+    code_context: str,
+    detected_language: str,
+    detected_framework: str,
+) -> list[dict[str, str]]:
+    """Build language-aware LLM messages while keeping one JSON schema."""
+    detected_language = detected_language or "Unknown"
+    detected_framework = detected_framework or "Unknown"
+    prompt_mode = "Python-optimized debugging" if _is_python_language(detected_language) else "Generic code triage"
+    framework_guidance = _framework_guidance_for(detected_framework)
+
+    if not framework_guidance:
+        framework_guidance = (
+            "Framework-specific guidance: no Django, Flask, or FastAPI guidance applies. "
+            "Use the language-level triage rules and repository evidence."
+        )
+
+    return [
+        {"role": "system", "content": _system_prompt_for_language(detected_language)},
+        {
+            "role": "user",
+            "content": USER_PROMPT_TEMPLATE.format(
+                detected_language=detected_language,
+                detected_framework=detected_framework,
+                prompt_mode=prompt_mode,
+                framework_guidance=framework_guidance,
+                error_log=error_log,
+                code_context=code_context or "No repository context provided.",
+            ),
+        },
+    ]
+
+
+def _system_prompt_for_language(detected_language: str) -> str:
+    if _is_python_language(detected_language):
+        return PYTHON_SYSTEM_PROMPT
+    return GENERIC_SYSTEM_PROMPT
+
+
+def _is_python_language(detected_language: str) -> bool:
+    return detected_language.strip().casefold() == "python"
+
+
+def _framework_guidance_for(detected_framework: str) -> str:
+    normalized = "".join(char for char in detected_framework.casefold() if char.isalnum())
+    if "django" in normalized:
+        return FRAMEWORK_GUIDANCE["django"]
+    if "flask" in normalized:
+        return FRAMEWORK_GUIDANCE["flask"]
+    if "fastapi" in normalized:
+        return FRAMEWORK_GUIDANCE["fastapi"]
+    return ""
 
 
 def parse_model_response(

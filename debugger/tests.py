@@ -14,6 +14,7 @@ from debugger.forms import BugReportForm
 from debugger.services.debugger import (
     DEBUGGER_RESPONSE_FORMAT,
     analysis_from_dict,
+    build_prompt_messages,
     fallback_analysis,
     parse_model_response,
 )
@@ -113,6 +114,53 @@ class DebuggerServiceTests(SimpleTestCase):
         self.assertIn("recommended_fix", schema["required"])
         self.assertIn("confidence_label", schema["required"])
         self.assertFalse(schema["additionalProperties"])
+
+    def test_prompt_messages_use_python_and_django_guidance(self):
+        messages = build_prompt_messages(
+            error_log=REPO_TRACEBACK,
+            code_context="def post_list(request): ...",
+            detected_language="Python",
+            detected_framework="Django",
+        )
+
+        self.assertIn("senior Python debugging assistant", messages[0]["content"])
+        self.assertIn("recommended_fix", messages[0]["content"])
+        self.assertIn("If any patch diff is uncertain", messages[0]["content"])
+        self.assertIn("Prompt mode: Python-optimized debugging", messages[1]["content"])
+        self.assertIn("Framework-specific guidance for Django", messages[1]["content"])
+        self.assertIn("URL routing", messages[1]["content"])
+
+    def test_prompt_messages_include_flask_and_fastapi_guidance(self):
+        cases = {
+            "Flask": "Flask's test client",
+            "FastAPI": "request/response validation",
+        }
+
+        for framework, expected in cases.items():
+            with self.subTest(framework=framework):
+                messages = build_prompt_messages(
+                    error_log="RuntimeError: example",
+                    code_context="",
+                    detected_language="Python",
+                    detected_framework=framework,
+                )
+
+                self.assertIn(f"Framework-specific guidance for {framework}", messages[1]["content"])
+                self.assertIn(expected, messages[1]["content"])
+
+    def test_prompt_messages_use_generic_triage_for_non_python(self):
+        messages = build_prompt_messages(
+            error_log="TypeError: Cannot read properties of undefined",
+            code_context="export function App() { return user.name; }",
+            detected_language="TypeScript",
+            detected_framework="React",
+        )
+
+        self.assertIn("senior code-debugging triage assistant", messages[0]["content"])
+        self.assertNotIn("senior Python debugging assistant", messages[0]["content"])
+        self.assertIn("Prompt mode: Generic code triage", messages[1]["content"])
+        self.assertIn("no Django, Flask, or FastAPI guidance applies", messages[1]["content"])
+        self.assertIn("recommended_fix", messages[0]["content"])
 
 
 class DebuggerViewTests(SimpleTestCase):
