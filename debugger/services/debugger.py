@@ -16,19 +16,8 @@ Return strict JSON only. Do not include markdown, commentary, or code fences."""
 
 USER_PROMPT_TEMPLATE = """Analyze this Django/Python failure.
 
-Expected JSON schema:
-{{
-  "issue_summary": "short summary",
-  "root_cause": "clear explanation",
-  "suspected_location": {{
-    "file": "best guess file path or module",
-    "function": "best guess function, method, class, or area"
-  }},
-  "suggested_fix": "minimal realistic fix",
-  "patch_diff": "minimal unified diff or empty string",
-  "confidence": 0.0,
-  "regression_test": "one concrete regression test"
-}}
+Return a JSON object that matches the required schema. Keep each field concise,
+specific, and useful for a developer about to make a small fix.
 
 Traceback or failing output:
 ```text
@@ -39,6 +28,69 @@ Optional code context:
 ```text
 {code_context}
 ```"""
+
+DEBUGGER_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "debugger_analysis",
+        "description": "A focused Django/Python debugging analysis.",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "issue_summary": {
+                    "type": "string",
+                    "description": "A short summary of the observed failure.",
+                },
+                "root_cause": {
+                    "type": "string",
+                    "description": "The most likely root cause, grounded in the traceback.",
+                },
+                "suspected_location": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "file": {
+                            "type": "string",
+                            "description": "Best guess file path, module, or Unknown.",
+                        },
+                        "function": {
+                            "type": "string",
+                            "description": "Best guess function, class, method, template block, or area.",
+                        },
+                    },
+                    "required": ["file", "function"],
+                },
+                "suggested_fix": {
+                    "type": "string",
+                    "description": "The smallest realistic fix to try first.",
+                },
+                "patch_diff": {
+                    "type": "string",
+                    "description": "Minimal unified diff, or an empty string if evidence is insufficient.",
+                },
+                "confidence": {
+                    "type": "number",
+                    "description": "Confidence from 0.0 to 1.0.",
+                },
+                "regression_test": {
+                    "type": "string",
+                    "description": "One concrete regression test suggestion.",
+                },
+            },
+            "required": [
+                "issue_summary",
+                "root_cause",
+                "suspected_location",
+                "suggested_fix",
+                "patch_diff",
+                "confidence",
+                "regression_test",
+            ],
+        },
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -64,6 +116,20 @@ class DebuggerAnalysis:
     @property
     def confidence_percent(self) -> int:
         return round(self.confidence * 100)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "issue_summary": self.issue_summary,
+            "root_cause": self.root_cause,
+            "suspected_location": {
+                "file": self.suspected_location.file,
+                "function": self.suspected_location.function,
+            },
+            "suggested_fix": self.suggested_fix,
+            "patch_diff": self.patch_diff,
+            "confidence": self.confidence,
+            "regression_test": self.regression_test,
+        }
 
 
 class DebuggerServiceError(Exception):
@@ -112,8 +178,9 @@ def _call_openai(error_log: str, code_context: str) -> str:
         raise DebuggerServiceError("The openai package is not installed.") from exc
 
     model = os.environ.get("AI_DEBUGGER_MODEL", "gpt-5.4")
+    timeout = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "45"))
     base_url = os.environ.get("OPENAI_BASE_URL") or None
-    client_kwargs = {"api_key": api_key}
+    client_kwargs = {"api_key": api_key, "timeout": timeout}
     if base_url:
         client_kwargs["base_url"] = base_url
 
@@ -121,7 +188,7 @@ def _call_openai(error_log: str, code_context: str) -> str:
     response = client.chat.completions.create(
         model=model,
         temperature=0.1,
-        response_format={"type": "json_object"},
+        response_format=DEBUGGER_RESPONSE_FORMAT,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {
