@@ -1,7 +1,6 @@
 (function () {
   const root = document.documentElement;
-  const themeToggle = document.getElementById("theme-toggle");
-  const themeToggleValue = document.getElementById("theme-toggle-value");
+  const themeOptions = Array.from(document.querySelectorAll("[data-theme-option]"));
   const themeMediaQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
   const THEME_STORAGE_KEY = "ai-debugger-theme";
   const demoButton = document.getElementById("load-demo");
@@ -33,14 +32,14 @@
   }
 
   function updateThemeToggle(theme) {
-    if (!themeToggle || !themeToggleValue) {
+    if (!themeOptions.length) {
       return;
     }
-    const isDark = theme === "dark";
-    themeToggleValue.textContent = isDark ? "Dark" : "Light";
-    themeToggle.setAttribute("aria-pressed", String(isDark));
-    themeToggle.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
-    themeToggle.title = isDark ? "Switch to light mode" : "Switch to dark mode";
+    themeOptions.forEach(function (option) {
+      const isActive = option.dataset.themeOption === theme;
+      option.classList.toggle("is-active", isActive);
+      option.setAttribute("aria-pressed", String(isActive));
+    });
   }
 
   function applyTheme(theme, persist) {
@@ -58,9 +57,11 @@
 
   updateThemeToggle(preferredTheme());
 
-  if (themeToggle) {
-    themeToggle.addEventListener("click", function () {
-      applyTheme(preferredTheme() === "dark" ? "light" : "dark", true);
+  if (themeOptions.length) {
+    themeOptions.forEach(function (option) {
+      option.addEventListener("click", function () {
+        applyTheme(option.dataset.themeOption || "light", true);
+      });
     });
   }
 

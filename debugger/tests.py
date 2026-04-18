@@ -273,7 +273,8 @@ class DebuggerViewTests(SimpleTestCase):
         response = Client().get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id="theme-toggle"')
+        self.assertContains(response, 'data-theme-option="light"')
+        self.assertContains(response, 'data-theme-option="dark"')
         self.assertContains(response, 'ai-debugger-theme')
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": ""})
