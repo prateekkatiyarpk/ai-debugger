@@ -294,6 +294,8 @@ class DebuggerViewTests(SimpleTestCase):
         response = Client().get("/")
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'rel="icon"')
+        self.assertContains(response, "debugger/img/favicon.svg")
         self.assertContains(response, 'data-theme-option="light"')
         self.assertContains(response, 'data-theme-option="dark"')
         self.assertContains(response, 'ai-debugger-theme')
