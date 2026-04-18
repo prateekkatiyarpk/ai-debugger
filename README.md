@@ -50,3 +50,44 @@ Click **Load Demo Example**, then **Analyze Bug**. If `OPENAI_API_KEY` is not se
 - The LLM call lives in `debugger/services/debugger.py`.
 - Bad model output is handled with a friendly fallback and the raw response is shown instead of crashing the page.
 - API keys are read from environment variables only.
+
+## CI/CD
+
+This repo includes a GitHub Actions workflow at `.github/workflows/ci.yml`.
+
+On every push or pull request to `main`, it runs:
+
+```bash
+python manage.py check
+python manage.py test
+python manage.py collectstatic --noinput
+```
+
+## Deploy On Render
+
+The simplest deployment path is Render:
+
+1. Push this repository to GitHub.
+2. In Render, create a new Blueprint from the repository.
+3. Render will read `render.yaml`, run `./build.sh`, and start Gunicorn.
+4. Add `OPENAI_API_KEY` in Render's environment variables.
+
+The app does not rely on the database for product features, so the included Render config keeps deployment lightweight.
+
+Useful production env vars:
+
+```bash
+DJANGO_DEBUG=0
+DJANGO_SECRET_KEY=<generated secret>
+DJANGO_ALLOWED_HOSTS=.onrender.com,your-domain.com
+OPENAI_API_KEY=<your key>
+AI_DEBUGGER_MODEL=gpt-4o-mini
+```
+
+For a manual host, the important commands are:
+
+```bash
+pip install -r requirements.txt
+python manage.py collectstatic --noinput
+python -m gunicorn ai_debugger.wsgi:application --bind 0.0.0.0:8000
+```
