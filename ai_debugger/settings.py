@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 
@@ -11,6 +12,7 @@ SECRET_KEY = (
 )
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "1").lower() in {"1", "true", "yes", "on"}
+IS_TESTING = "test" in sys.argv
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -36,12 +38,13 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+if not IS_TESTING:
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
 ROOT_URLCONF = "ai_debugger.urls"
 
@@ -85,7 +88,7 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-if not DEBUG:
+if not DEBUG and not IS_TESTING:
     STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",

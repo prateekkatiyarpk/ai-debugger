@@ -255,6 +255,7 @@ class ReproRunnerTests(SimpleTestCase):
         self.assertFalse(capture.ran)
         self.assertIn("disabled on this deployment", capture.error_message)
 
+    @patch.dict(os.environ, {"AI_DEBUGGER_ENABLE_COMMAND_EXECUTION": "1"})
     def test_capture_repro_command_returns_helpful_error_without_repo(self):
         capture = capture_repro_command(None, "pytest")
 
@@ -263,6 +264,7 @@ class ReproRunnerTests(SimpleTestCase):
         self.assertFalse(capture.has_output)
         self.assertIn("Add a repo ZIP", capture.error_message)
 
+    @patch.dict(os.environ, {"AI_DEBUGGER_ENABLE_COMMAND_EXECUTION": "1"})
     def test_capture_repro_command_rejects_unsupported_command(self):
         capture = capture_repro_command(Path("."), "bash -lc 'pytest'")
 
@@ -271,6 +273,7 @@ class ReproRunnerTests(SimpleTestCase):
         self.assertIn("supports common test and build repro commands", capture.error_message)
 
     @patch("debugger.services.repro_runner.subprocess.run")
+    @patch.dict(os.environ, {"AI_DEBUGGER_ENABLE_COMMAND_EXECUTION": "1"})
     def test_capture_repro_command_formats_output(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess(
             args=["pytest"],
