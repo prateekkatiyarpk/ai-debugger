@@ -19,26 +19,29 @@
       <div class="hero-copy">
         <div class="hero-badge-row" aria-label="Product strengths">
           <span class="hero-badge">Repo-aware</span>
-          <span class="hero-badge">ZIP-first</span>
+          <span class="hero-badge">ZIP-first context</span>
           <span class="hero-badge hero-badge-strong">Python optimized</span>
         </div>
         <p class="eyebrow">Evidence-backed failure triage</p>
         <h1 id="page-title">AI Debugger</h1>
-        <p class="lede">Paste any failure log, attach repo context, and get the likely root cause, evidence, ranked fixes, and one validation step.</p>
-        <div class="hero-pill-row" aria-label="Supported workflow">
-          <span>Stack traces</span>
-          <span>Build logs</span>
-          <span>Failing tests</span>
-          <span>Public repos or ZIPs</span>
-        </div>
+        <p class="lede">Paste a stack trace, failing test, or build log. Attach a repo ZIP or public URL. Get a focused diagnosis with evidence, ranked fixes, and one validation step.</p>
       </div>
       <div class="signal-panel hero-status-panel" aria-hidden="true">
-        <p class="panel-label">Triage loop</p>
-        <div class="signal-row"><span class="signal-step">1</span><span>Parse failure signal</span></div>
-        <div class="signal-row"><span class="signal-step">2</span><span>Rank repo evidence</span></div>
-        <div class="signal-row"><span class="signal-step">3</span><span>Return fixes + validation</span></div>
+        <p class="panel-label">Analysis path</p>
+        <div class="signal-row">
+          <span class="signal-step">01</span>
+          <span><strong>Parse log</strong><small>Exception, file, line, symbol clues</small></span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-step">02</span>
+          <span><strong>Inspect repo</strong><small>Top snippets and framework signals</small></span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-step">03</span>
+          <span><strong>Rank fixes</strong><small>Recommended, safest, alternative</small></span>
+        </div>
         <div class="signal-rule"></div>
-        <p class="signal-footnote">Best path: upload a small repo ZIP, then run the suggested validation.</p>
+        <p class="signal-footnote">Use ZIP upload for the most reliable demo path.</p>
       </div>
     </section>
 

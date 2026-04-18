@@ -41,29 +41,27 @@ textarea {
 
 .intro-band {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+  gap: 32px;
   align-items: center;
-  padding: 18px 0 20px;
+  padding: 18px 0 18px;
 }
 
 .hero-copy {
   min-width: 0;
 }
 
-.hero-badge-row,
-.hero-pill-row {
+.hero-badge-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
 .hero-badge-row {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
-.hero-badge,
-.hero-pill-row span {
+.hero-badge {
   display: inline-flex;
   min-height: 30px;
   align-items: center;
@@ -83,16 +81,6 @@ textarea {
   border-color: #bdd9c6;
   background: var(--surface-strong);
   color: var(--green-dark);
-}
-
-.hero-pill-row {
-  margin-top: 18px;
-}
-
-.hero-pill-row span {
-  border: 1px solid #dfe6e2;
-  background: #fafdfe;
-  color: #43504a;
 }
 
 .eyebrow {
@@ -133,16 +121,16 @@ h4 {
 }
 
 .lede {
-  max-width: 760px;
-  margin: 18px 0 0;
+  max-width: 800px;
+  margin: 20px 0 0;
   color: var(--muted);
-  font-size: 1.08rem;
+  font-size: 1.12rem;
 }
 
 .signal-panel {
   display: grid;
-  gap: 11px;
-  padding: 18px;
+  gap: 12px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -150,19 +138,32 @@ h4 {
 }
 
 .hero-status-panel {
-  align-self: stretch;
-  align-content: center;
+  align-self: center;
   border-color: #cbd8d1;
 }
 
 .signal-row {
   display: flex;
-  min-height: 30px;
-  align-items: center;
-  gap: 10px;
+  min-height: 46px;
+  align-items: flex-start;
+  gap: 11px;
   color: var(--ink);
-  font-size: 0.94rem;
-  font-weight: 800;
+  font-size: 0.92rem;
+}
+
+.signal-row strong,
+.signal-row small {
+  display: block;
+}
+
+.signal-row strong {
+  font-weight: 900;
+}
+
+.signal-row small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .panel-label,
@@ -179,9 +180,9 @@ h4 {
 
 .signal-step {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
