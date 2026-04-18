@@ -1,0 +1,156 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Debugger</title>
+  <link rel="stylesheet" href="{% static 'debugger/css/styles.css' %}">
+</head>
+<body>
+  {{ demo_error_log|json_script:"demo-error-log" }}
+  {{ demo_code_context|json_script:"demo-code-context" }}
+
+  <main class="page-shell">
+    <section class="intro-band" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Traceback-first Django debugging</p>
+        <h1 id="page-title">AI Debugger</h1>
+        <p class="lede">Paste the failure, add the nearby code if you have it, and get a focused diagnosis with the smallest useful fix.</p>
+      </div>
+      <div class="signal-panel" aria-hidden="true">
+        <div class="signal-row"><span class="dot dot-red"></span><span>Exception captured</span></div>
+        <div class="signal-row"><span class="dot dot-green"></span><span>Root cause isolated</span></div>
+        <div class="signal-row"><span class="dot dot-yellow"></span><span>Regression test queued</span></div>
+      </div>
+    </section>
+
+    <section class="workspace" aria-label="Bug analyzer">
+      <form method="post" class="debug-form">
+        {% csrf_token %}
+        <div class="form-grid">
+          <div class="field-block">
+            <div class="field-header">
+              <label for="{{ form.error_log.id_for_label }}">{{ form.error_log.label }}</label>
+              <span class="required">Required</span>
+            </div>
+            {{ form.error_log }}
+            {% for error in form.error_log.errors %}
+              <p class="field-error">{{ error }}</p>
+            {% endfor %}
+          </div>
+
+          <div class="field-block">
+            <div class="field-header">
+              <label for="{{ form.code_context.id_for_label }}">{{ form.code_context.label }}</label>
+              <span class="optional">Optional</span>
+            </div>
+            {{ form.code_context }}
+            {% for error in form.code_context.errors %}
+              <p class="field-error">{{ error }}</p>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button type="submit" class="button button-primary">Analyze Bug</button>
+          <button type="button" class="button button-secondary" id="load-demo">Load Demo Example</button>
+        </div>
+      </form>
+    </section>
+
+    {% if analysis %}
+      <section class="results-band" aria-labelledby="results-title">
+        <div class="results-heading">
+          <div>
+            <p class="eyebrow">Analysis</p>
+            <h2 id="results-title">Debugging Result</h2>
+          </div>
+          <div class="confidence-meter" aria-label="Confidence score {{ analysis.confidence_percent }} percent">
+            <span>{{ analysis.confidence_percent }}%</span>
+            <div class="meter-track">
+              <div class="meter-fill" style="width: {{ analysis.confidence_percent }}%"></div>
+            </div>
+          </div>
+        </div>
+
+        {% if not analysis.parsed %}
+          <div class="notice">
+            <strong>Model output needed a fallback.</strong>
+            <span>{{ analysis.fallback_reason }}</span>
+          </div>
+        {% elif analysis.source == "demo" and analysis.fallback_reason %}
+          <div class="notice">
+            <strong>Demo fallback active.</strong>
+            <span>{{ analysis.fallback_reason }}</span>
+          </div>
+        {% elif analysis.source == "demo" %}
+          <div class="notice notice-calm">
+            <strong>Built-in demo analysis.</strong>
+            <span>Set OPENAI_API_KEY to analyze your own tracebacks with a live model.</span>
+          </div>
+        {% endif %}
+
+        <div class="result-grid">
+          <article class="result-card">
+            <h3>Issue Summary</h3>
+            <p>{{ analysis.issue_summary }}</p>
+          </article>
+
+          <article class="result-card">
+            <h3>Root Cause</h3>
+            <p>{{ analysis.root_cause }}</p>
+          </article>
+
+          <article class="result-card compact-card">
+            <h3>Suspected Location</h3>
+            <dl class="location-list">
+              <div>
+                <dt>File</dt>
+                <dd>{{ analysis.suspected_location.file }}</dd>
+              </div>
+              <div>
+                <dt>Function</dt>
+                <dd>{{ analysis.suspected_location.function }}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="result-card compact-card">
+            <h3>Confidence Score</h3>
+            <p class="score-text">{{ analysis.confidence }}</p>
+          </article>
+
+          <article class="result-card">
+            <h3>Suggested Fix</h3>
+            <p>{{ analysis.suggested_fix }}</p>
+          </article>
+
+          <article class="result-card">
+            <h3>Regression Test</h3>
+            <p>{{ analysis.regression_test }}</p>
+          </article>
+        </div>
+
+        <article class="diff-block">
+          <h3>Patch Diff</h3>
+          {% if analysis.patch_diff %}
+            <pre><code>{{ analysis.patch_diff }}</code></pre>
+          {% else %}
+            <p>No patch diff suggested. The analyzer needs more evidence before proposing code changes.</p>
+          {% endif %}
+        </article>
+
+        {% if analysis.raw_response %}
+          <article class="diff-block raw-response">
+            <h3>Raw Response</h3>
+            <pre><code>{{ analysis.raw_response }}</code></pre>
+          </article>
+        {% endif %}
+      </section>
+    {% endif %}
+  </main>
+
+  <script src="{% static 'debugger/js/app.js' %}"></script>
+</body>
+</html>
