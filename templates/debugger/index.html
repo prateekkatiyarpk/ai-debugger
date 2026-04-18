@@ -24,7 +24,7 @@
         </div>
         <p class="eyebrow">Evidence-backed failure triage</p>
         <h1 id="page-title">AI Debugger</h1>
-        <p class="lede">Paste a stack trace, failing test, or build log. Attach a repo ZIP or public URL. Get a focused diagnosis with evidence, ranked fixes, and one validation step.</p>
+        <p class="lede">Paste a stack trace, failing test, or build log. Attach a repo ZIP or public GitHub URL. Get an evidence-backed root cause, ranked fixes, and one validation step.</p>
       </div>
       <div class="signal-panel hero-status-panel" aria-hidden="true">
         <p class="panel-label">Analysis path</p>
@@ -41,7 +41,7 @@
           <span><strong>Rank fixes</strong><small>Recommended, safest, alternative</small></span>
         </div>
         <div class="signal-rule"></div>
-        <p class="signal-footnote">Use ZIP upload for the most reliable demo path.</p>
+        <p class="signal-footnote">ZIP upload gives the most reliable demo path.</p>
       </div>
     </section>
 
@@ -71,7 +71,7 @@
             <div class="field-header repo-access-heading">
               <div>
                 <p class="eyebrow">Repository Access</p>
-                <h2>Let the app find context</h2>
+                <h2>Let AI Debugger find context</h2>
               </div>
               <span class="optional">Optional</span>
             </div>
@@ -80,7 +80,7 @@
               <div class="field-block">
                 <label for="{{ form.github_url.id_for_label }}">{{ form.github_url.label }}</label>
                 {{ form.github_url }}
-                <p class="field-help">Best effort for public repos. ZIP is preferred when you have it.</p>
+                <p class="field-help">Best effort for public repos. Use ZIP when you need reliable context.</p>
                 {% for error in form.github_url.errors %}
                   <p class="field-error">{{ error }}</p>
                 {% endfor %}
@@ -89,7 +89,7 @@
               <div class="field-block">
                 <label for="{{ form.repo_zip.id_for_label }}">{{ form.repo_zip.label }}</label>
                 {{ form.repo_zip }}
-                <p class="field-help">Most reliable path for demos. Upload a small project ZIP.</p>
+                <p class="field-help">Most reliable path for demos. Upload a focused project ZIP.</p>
                 {% for error in form.repo_zip.errors %}
                   <p class="field-error">{{ error }}</p>
                 {% endfor %}
