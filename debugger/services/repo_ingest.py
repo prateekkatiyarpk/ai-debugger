@@ -20,6 +20,7 @@ MAX_UNZIPPED_BYTES = 60 * 1024 * 1024
 MAX_ZIP_MEMBERS = 2500
 CONTEXT_LIMIT = 60_000
 IGNORED_TOP_LEVEL_NAMES = {".ds_store", "__macosx"}
+GITHUB_API_ROOT = "https://api.github.com"
 
 
 @dataclass(frozen=True)
@@ -49,7 +50,7 @@ class RepositoryContext:
         if self.source == "zip":
             return "ZIP upload"
         if self.source == "github":
-            return "Public GitHub repo"
+            return "GitHub repo"
         return "Manual fallback"
 
     @property
@@ -77,10 +78,15 @@ def build_repository_context(
     *,
     error_log: str,
     github_url: str = "",
+    github_token: str = "",
     uploaded_zip=None,
     manual_context: str = "",
 ) -> RepositoryContext:
-    with prepare_repository_workspace(github_url=github_url, uploaded_zip=uploaded_zip) as workspace:
+    with prepare_repository_workspace(
+        github_url=github_url,
+        github_token=github_token,
+        uploaded_zip=uploaded_zip,
+    ) as workspace:
         return build_repository_context_from_workspace(
             workspace,
             error_log=error_log,
@@ -124,6 +130,7 @@ def build_repository_context_from_workspace(
 def prepare_repository_workspace(
     *,
     github_url: str = "",
+    github_token: str = "",
     uploaded_zip=None,
 ) -> Iterator[RepositoryWorkspace]:
     source = "manual"
@@ -151,7 +158,11 @@ def prepare_repository_workspace(
             repo_label = github_url.strip()
             try:
                 temp_dir = tempfile.TemporaryDirectory(prefix="ai-debugger-github-")
-                analysis_root, repo_label = _download_public_github_repo(github_url.strip(), Path(temp_dir.name))
+                analysis_root, repo_label = _download_github_repo(
+                    github_url.strip(),
+                    Path(temp_dir.name),
+                    github_token=github_token.strip(),
+                )
                 execution_root = _preferred_execution_root(analysis_root)
             except RepoIngestError as exc:
                 errors.append(str(exc))
@@ -193,14 +204,19 @@ def _extract_uploaded_zip(uploaded_zip, destination: Path) -> None:
         raise RepoIngestError("That file is not a valid ZIP archive.") from exc
 
 
-def _download_public_github_repo(github_url: str, temp_root: Path) -> tuple[Path, str]:
+def _download_github_repo(
+    github_url: str,
+    temp_root: Path,
+    *,
+    github_token: str = "",
+) -> tuple[Path, str]:
     owner, repo, branch = _parse_github_url(github_url)
-    branch = branch or _fetch_default_branch(owner, repo)
+    branch = branch or _fetch_default_branch(owner, repo, github_token=github_token)
     repo_root = temp_root / "repo"
     repo_root.mkdir()
 
     archive_path = temp_root / "repo.zip"
-    _download_github_zip(owner, repo, branch, archive_path)
+    _download_github_zip(owner, repo, branch, archive_path, github_token=github_token)
 
     with archive_path.open("rb") as archive:
         _safe_extract_zip(archive, repo_root)
@@ -227,7 +243,7 @@ def _preferred_execution_root(root: Path) -> Path:
 def _parse_github_url(url: str) -> tuple[str, str, str]:
     parsed = urllib.parse.urlparse(url)
     if parsed.netloc.lower() not in {"github.com", "www.github.com"}:
-        raise RepoIngestError("Enter a public GitHub repository URL like https://github.com/owner/repo.")
+        raise RepoIngestError("Enter a GitHub repository URL like https://github.com/owner/repo.")
 
     parts = [part for part in parsed.path.strip("/").split("/") if part]
     if len(parts) < 2:
@@ -244,13 +260,15 @@ def _parse_github_url(url: str) -> tuple[str, str, str]:
     return owner, repo, branch
 
 
-def _fetch_default_branch(owner: str, repo: str) -> str:
-    api_url = f"https://api.github.com/repos/{owner}/{repo}"
+def _fetch_default_branch(owner: str, repo: str, *, github_token: str = "") -> str:
+    api_url = f"{GITHUB_API_ROOT}/repos/{owner}/{repo}"
     try:
-        with _open_url(api_url, timeout=10) as response:
+        with _open_url(api_url, timeout=10, github_token=github_token) as response:
             payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise RepoIngestError(_github_http_error_message(exc, github_token=github_token, action="read")) from exc
     except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
-        raise RepoIngestError("Could not read that public GitHub repo. Check the URL or try ZIP upload.") from exc
+        raise RepoIngestError("Could not reach GitHub. Check the URL or try ZIP upload.") from exc
 
     branch = payload.get("default_branch")
     if not branch:
@@ -258,11 +276,18 @@ def _fetch_default_branch(owner: str, repo: str) -> str:
     return branch
 
 
-def _download_github_zip(owner: str, repo: str, branch: str, archive_path: Path) -> None:
+def _download_github_zip(
+    owner: str,
+    repo: str,
+    branch: str,
+    archive_path: Path,
+    *,
+    github_token: str = "",
+) -> None:
     quoted_branch = urllib.parse.quote(branch, safe="")
-    zip_url = f"https://codeload.github.com/{owner}/{repo}/zip/refs/heads/{quoted_branch}"
+    zip_url = f"{GITHUB_API_ROOT}/repos/{owner}/{repo}/zipball/{quoted_branch}"
     try:
-        with _open_url(zip_url, timeout=20) as response, archive_path.open("wb") as target:
+        with _open_url(zip_url, timeout=20, github_token=github_token) as response, archive_path.open("wb") as target:
             total = 0
             while True:
                 chunk = response.read(1024 * 128)
@@ -274,19 +299,51 @@ def _download_github_zip(owner: str, repo: str, branch: str, archive_path: Path)
                 target.write(chunk)
     except RepoIngestError:
         raise
+    except urllib.error.HTTPError as exc:
+        raise RepoIngestError(_github_http_error_message(exc, github_token=github_token, action="download")) from exc
     except (OSError, urllib.error.URLError) as exc:
-        raise RepoIngestError("Could not download the public GitHub repo. Try ZIP upload instead.") from exc
+        raise RepoIngestError("Could not download that GitHub repo archive. Try ZIP upload instead.") from exc
 
 
-def _open_url(url: str, timeout: int):
-    request = urllib.request.Request(
-        url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "ai-debugger-demo",
-        },
-    )
+def _open_url(url: str, timeout: int, *, github_token: str = ""):
+    request = _build_github_request(url, github_token=github_token)
     return urllib.request.urlopen(request, timeout=timeout)
+
+
+def _build_github_request(url: str, *, github_token: str = ""):
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "ai-debugger-demo",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if github_token:
+        headers["Authorization"] = f"Bearer {github_token}"
+    return urllib.request.Request(url, headers=headers)
+
+
+def _github_http_error_message(exc: urllib.error.HTTPError, *, github_token: str, action: str) -> str:
+    code = getattr(exc, "code", None)
+    headers = getattr(exc, "headers", {}) or {}
+    token_present = bool(github_token)
+    action_phrase = "read that GitHub repo" if action == "read" else "download that GitHub repo archive"
+
+    if code == 401:
+        return "GitHub access token was rejected. Check the token value and confirm it can read this repo."
+
+    if code == 403 and headers.get("X-RateLimit-Remaining") == "0":
+        return "GitHub rate limit was reached while trying to access this repo. Try again later or use ZIP upload."
+
+    if code == 403:
+        if token_present:
+            return "GitHub access token does not have permission to read this repo. Check the token scope or use ZIP upload."
+        return "GitHub denied access to this repo. If it is private, add a GitHub access token or use ZIP upload."
+
+    if code == 404:
+        if token_present:
+            return "Could not access that GitHub repo. Check the URL and confirm the token has read access."
+        return "Could not read that GitHub repo. Check the URL. If it is private, add a GitHub access token or try ZIP upload."
+
+    return f"Could not {action_phrase}. Try again later or use ZIP upload."
 
 
 def _safe_extract_zip(file_obj: BinaryIO, destination: Path) -> None:

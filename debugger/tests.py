@@ -3,7 +3,9 @@ import json
 import os
 import subprocess
 import tempfile
+import urllib.error
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,8 +22,13 @@ from debugger.services.debugger import (
     fallback_analysis,
     parse_model_response,
 )
-from debugger.services.language_detect import detect_language_profile
-from debugger.services.repo_ingest import build_repository_context
+from debugger.services.language_detect import LanguageProfile, detect_language_profile
+from debugger.services.repo_ingest import (
+    RepositoryContext,
+    RepositoryWorkspace,
+    _build_github_request,
+    build_repository_context,
+)
 from debugger.services.repo_search import discover_repo_context, parse_traceback_clues
 from debugger.services.repro_runner import CommandCapture, capture_repro_command
 from debugger.views import _build_demo_detail_url
@@ -49,6 +56,19 @@ def make_zip(files: dict[str, str]) -> bytes:
         for path, content in files.items():
             archive.writestr(path, content)
     return buffer.getvalue()
+
+
+class FakeUrlResponse(io.BytesIO):
+    def __init__(self, payload: bytes, headers=None):
+        super().__init__(payload)
+        self.headers = headers or {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+        return False
 
 
 class DebuggerServiceTests(SimpleTestCase):
@@ -296,6 +316,63 @@ class DebuggerViewTests(SimpleTestCase):
         self.assertContains(response, "The post list template tries to reverse")
 
     @patch("debugger.views.analyze_bug")
+    @patch("debugger.views.build_repository_context_from_workspace")
+    def test_github_token_reaches_analysis_flow(self, mock_build_context, mock_analyze_bug):
+        workspace = RepositoryWorkspace(
+            source="github",
+            repo_label="acme/private-repo",
+            analysis_root=None,
+            execution_root=None,
+            errors=[],
+        )
+
+        @contextmanager
+        def fake_workspace(**kwargs):
+            self.assertEqual(kwargs["github_url"], "https://github.com/acme/private-repo")
+            self.assertEqual(kwargs["github_token"], "github_pat_secret")
+            yield workspace
+
+        mock_build_context.return_value = RepositoryContext(
+            source="github",
+            repo_label="acme/private-repo",
+            language_profile=LanguageProfile(language="Python", framework="Django"),
+            snippets=[],
+            errors=[],
+            combined_context="repo context",
+        )
+        mock_analyze_bug.return_value = analysis_from_dict(DEMO_ANALYSIS, source="llm")
+
+        with patch("debugger.views.prepare_repository_workspace", side_effect=fake_workspace):
+            response = Client().post(
+                "/",
+                {
+                    "error_log": REPO_TRACEBACK,
+                    "github_url": "https://github.com/acme/private-repo",
+                    "github_token": "github_pat_secret",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        _args, kwargs = mock_analyze_bug.call_args
+        self.assertEqual(kwargs["code_context"], "repo context")
+        self.assertEqual(kwargs["detected_language"], "Python")
+        self.assertEqual(kwargs["detected_framework"], "Django")
+
+    def test_github_token_is_not_rendered_back_after_form_error(self):
+        token = "github_pat_secret_token_value"
+        response = Client().post(
+            "/",
+            {
+                "error_log": REPO_TRACEBACK,
+                "github_url": "not a github url",
+                "github_token": token,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, token)
+
+    @patch("debugger.views.analyze_bug")
     def test_zip_upload_discovers_context_for_analysis(self, mock_analyze_bug):
         mock_analyze_bug.return_value = analysis_from_dict(DEMO_ANALYSIS, source="llm")
         repo_zip = SimpleUploadedFile(
@@ -414,6 +491,21 @@ class DebuggerViewTests(SimpleTestCase):
 
 
 class RepositoryContextTests(SimpleTestCase):
+    def test_build_github_request_omits_auth_header_without_token(self):
+        request = _build_github_request("https://api.github.com/repos/acme/public-repo")
+        headers = {key.lower(): value for key, value in request.header_items()}
+
+        self.assertNotIn("authorization", headers)
+
+    def test_build_github_request_includes_auth_header_with_token(self):
+        request = _build_github_request(
+            "https://api.github.com/repos/acme/private-repo",
+            github_token="github_pat_secret",
+        )
+        headers = {key.lower(): value for key, value in request.header_items()}
+
+        self.assertEqual(headers["authorization"], "Bearer github_pat_secret")
+
     def test_parse_traceback_clues_extracts_file_line_and_exception(self):
         clues = parse_traceback_clues(REPO_TRACEBACK)
 
@@ -546,6 +638,72 @@ class RepositoryContextTests(SimpleTestCase):
         self.assertIn("unsafe", context.errors[0])
         self.assertIn("fallback", context.combined_context)
 
+    @patch("debugger.services.repo_ingest.urllib.request.urlopen")
+    def test_private_github_repo_without_token_returns_private_repo_hint(self, mock_urlopen):
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="https://api.github.com/repos/acme/private-repo",
+            code=404,
+            msg="Not Found",
+            hdrs={},
+            fp=io.BytesIO(b""),
+        )
+
+        context = build_repository_context(
+            error_log=REPO_TRACEBACK,
+            github_url="https://github.com/acme/private-repo",
+        )
+
+        self.assertTrue(context.errors)
+        self.assertIn("If it is private, add a GitHub access token", context.errors[0])
+
+    @patch("debugger.services.repo_ingest.urllib.request.urlopen")
+    def test_private_github_repo_with_invalid_token_returns_auth_error(self, mock_urlopen):
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="https://api.github.com/repos/acme/private-repo",
+            code=401,
+            msg="Unauthorized",
+            hdrs={},
+            fp=io.BytesIO(b""),
+        )
+
+        context = build_repository_context(
+            error_log=REPO_TRACEBACK,
+            github_url="https://github.com/acme/private-repo",
+            github_token="github_pat_secret",
+        )
+
+        self.assertTrue(context.errors)
+        self.assertIn("token was rejected", context.errors[0])
+
+    @patch("debugger.services.repo_ingest.urllib.request.urlopen")
+    def test_authenticated_github_repo_download_builds_context(self, mock_urlopen):
+        mock_urlopen.side_effect = [
+            FakeUrlResponse(json.dumps({"default_branch": "main"}).encode("utf-8")),
+            FakeUrlResponse(
+                make_zip(
+                    {
+                        "private-repo-main/manage.py": "from django.core.management import execute_from_command_line\n",
+                        "private-repo-main/posts/views.py": "def post_list(request): pass\n",
+                    }
+                )
+            ),
+        ]
+
+        context = build_repository_context(
+            error_log=REPO_TRACEBACK,
+            github_url="https://github.com/acme/private-repo",
+            github_token="github_pat_secret",
+        )
+
+        self.assertEqual(context.detected_language, "Python")
+        requests = [call.args[0] for call in mock_urlopen.call_args_list]
+        first_headers = {key.lower(): value for key, value in requests[0].header_items()}
+        second_headers = {key.lower(): value for key, value in requests[1].header_items()}
+        self.assertEqual(first_headers["authorization"], "Bearer github_pat_secret")
+        self.assertEqual(second_headers["authorization"], "Bearer github_pat_secret")
+        self.assertEqual(requests[0].full_url, "https://api.github.com/repos/acme/private-repo")
+        self.assertTrue(requests[1].full_url.endswith("/repos/acme/private-repo/zipball/main"))
+
     def test_language_detection_supports_javascript_repo(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -640,6 +798,7 @@ class RepositoryContextTests(SimpleTestCase):
             data={
                 "error_log": REPO_TRACEBACK,
                 "github_url": "not a github url",
+                "github_token": "github_pat_secret",
                 "code_context": "",
             },
             files={"repo_zip": uploaded},
@@ -647,6 +806,21 @@ class RepositoryContextTests(SimpleTestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data["github_url"], "")
+        self.assertEqual(form.cleaned_data["github_token"], "")
+
+    def test_form_accepts_private_github_url_with_token(self):
+        form = BugReportForm(
+            data={
+                "error_log": REPO_TRACEBACK,
+                "github_url": "https://github.com/acme/private-repo",
+                "github_token": "github_pat_secret",
+                "code_context": "",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["github_url"], "https://github.com/acme/private-repo")
+        self.assertEqual(form.cleaned_data["github_token"], "github_pat_secret")
 
     def test_form_requires_failure_signal(self):
         form = BugReportForm(
@@ -672,4 +846,4 @@ class RepositoryContextTests(SimpleTestCase):
         )
 
         self.assertFalse(form.is_valid())
-        self.assertIn("Add a repo ZIP or public GitHub URL", form.errors["repro_command"][0])
+        self.assertIn("Add a repo ZIP or GitHub URL", form.errors["repro_command"][0])

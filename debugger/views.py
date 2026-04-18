@@ -30,6 +30,7 @@ def index(request):
 
             with prepare_repository_workspace(
                 github_url=form.cleaned_data.get("github_url", ""),
+                github_token=form.cleaned_data.get("github_token", ""),
                 uploaded_zip=form.cleaned_data.get("repo_zip"),
             ) as workspace:
                 if repro_command and workspace.has_repo_input:

@@ -97,8 +97,17 @@
               <div class="field-block">
                 <label for="{{ form.github_url.id_for_label }}">{{ form.github_url.label }}</label>
                 {{ form.github_url }}
-                <p class="field-help">Best effort for public repos. Use ZIP when you need reliable context.</p>
+                <p class="field-help">Works for public repos without a token. Private repos need a GitHub access token.</p>
                 {% for error in form.github_url.errors %}
+                  <p class="field-error">{{ error }}</p>
+                {% endfor %}
+              </div>
+
+              <div class="field-block">
+                <label for="{{ form.github_token.id_for_label }}">{{ form.github_token.label }}</label>
+                {{ form.github_token }}
+                <p class="field-help">Used only for this request. Provide a fine-grained token with read access for private repos.</p>
+                {% for error in form.github_token.errors %}
                   <p class="field-error">{{ error }}</p>
                 {% endfor %}
               </div>

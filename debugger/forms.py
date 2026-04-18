@@ -30,7 +30,7 @@ class BugReportForm(forms.Form):
         ),
     )
     github_url = forms.CharField(
-        label="Public GitHub URL",
+        label="GitHub URL",
         required=False,
         max_length=300,
         widget=forms.URLInput(
@@ -38,6 +38,20 @@ class BugReportForm(forms.Form):
                 "class": "text-input",
                 "placeholder": "https://github.com/owner/repo",
             }
+        ),
+    )
+    github_token = forms.CharField(
+        label="GitHub access token",
+        required=False,
+        max_length=500,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "text-input",
+                "placeholder": "github_pat_... or ghp_...",
+                "spellcheck": "false",
+                "autocomplete": "off",
+            },
+            render_value=False,
         ),
     )
     repo_zip = forms.FileField(
@@ -67,6 +81,9 @@ class BugReportForm(forms.Form):
     def clean_github_url(self):
         return self.cleaned_data.get("github_url", "").strip()
 
+    def clean_github_token(self):
+        return self.cleaned_data.get("github_token", "").strip()
+
     def clean_error_log(self):
         return self.cleaned_data.get("error_log", "").strip()
 
@@ -87,6 +104,7 @@ class BugReportForm(forms.Form):
         cleaned_data = super().clean()
         if cleaned_data.get("repo_zip"):
             cleaned_data["github_url"] = ""
+            cleaned_data["github_token"] = ""
         else:
             github_url = cleaned_data.get("github_url", "")
             if github_url:
@@ -104,6 +122,6 @@ class BugReportForm(forms.Form):
         elif repro_command and not error_log and not has_repo:
             self.add_error(
                 "repro_command",
-                "Add a repo ZIP or public GitHub URL to run a repro command.",
+                "Add a repo ZIP or GitHub URL to run a repro command.",
             )
         return cleaned_data
